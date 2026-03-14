@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa Mental — Capítulo 5: Entrada y Salida</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+  :root {
+    --bg: #050810;
+    --border: #1e2a45;
+    --accent1: #4af0c4;
+    --accent2: #6c8aff;
+    --accent3: #ff6b9d;
+    --accent4: #ffd166;
+    --accent5: #a78bfa;
+    --accent6: #34d399;
+    --text: #e8edf5;
+    --muted: #8892a4;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    height: 100vh; width: 100vw;
+  }
+
+  /* HEADER */
+  #header {
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 28px;
+    background:rgba(5,8,16,0.88);
+    backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--border);
+  }
+  #header h1 {
+    font-family:'Syne',sans-serif; font-size:1rem; font-weight:800;
+    letter-spacing:0.08em; text-transform:uppercase;
+    background:linear-gradient(90deg,var(--accent1),var(--accent2));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  #header p { font-size:0.72rem; color:var(--muted); margin-top:2px; }
+  .btn-row { display:flex; gap:10px; }
+  .btn {
+    font-family:'Syne',sans-serif; font-size:0.72rem; font-weight:600;
+    letter-spacing:0.06em; text-transform:uppercase;
+    padding:7px 16px; border-radius:6px; border:1px solid; cursor:pointer; transition:all .2s;
+  }
+  .btn-reset { background:transparent; border-color:var(--border); color:var(--muted); }
+  .btn-reset:hover { border-color:var(--accent2); color:var(--accent2); }
+  .btn-download {
+    background:linear-gradient(135deg,var(--accent1),var(--accent2));
+    border-color:transparent; color:#050810;
+  }
+  .btn-download:hover { opacity:.85; transform:scale(1.03); }
+
+  /* CANVAS */
+  #canvas-wrap {
+    position:fixed; inset:0; top:56px;
+    overflow:hidden; cursor:grab;
+  }
+  #canvas-wrap.grabbing { cursor:grabbing; }
+  #canvas {
+    position:absolute;
+    width:5200px; height:4200px;
+    transform-origin:0 0;
+  }
+
+  /* TOOLTIP */
+  #tooltip {
+    position:fixed; z-index:200;
+    background:rgba(13,17,32,0.97);
+    border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; max-width:260px;
+    font-size:.8rem; line-height:1.55; color:var(--muted);
+    pointer-events:none; display:none;
+    backdrop-filter:blur(8px);
+    box-shadow:0 8px 32px rgba(0,0,0,.6);
+  }
+  #tooltip strong { color:var(--text); font-weight:600; display:block; margin-bottom:5px; font-size:.85rem; }
+
+  /* LEGEND */
+  #legend {
+    position:fixed; bottom:20px; left:20px; z-index:100;
+    background:rgba(13,17,32,0.92); border:1px solid var(--border);
+    border-radius:10px; padding:12px 16px; font-size:.73rem;
+    backdrop-filter:blur(8px);
+  }
+  #legend p { color:var(--muted); margin-bottom:8px; font-size:.67rem; text-transform:uppercase; letter-spacing:.07em; }
+  .leg-item { display:flex; align-items:center; gap:8px; margin-bottom:5px; color:var(--text); }
+  .leg-dot  { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+  /* ZOOM */
+  #zoom-ctrl { position:fixed; bottom:20px; right:20px; z-index:100; display:flex; flex-direction:column; gap:6px; }
+  .zoom-btn {
+    width:38px; height:38px; background:rgba(13,17,32,0.92);
+    border:1px solid var(--border); border-radius:8px; color:var(--text);
+    font-size:1.15rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:border-color .2s;
+  }
+  .zoom-btn:hover { border-color:var(--accent1); color:var(--accent1); }
+
+  /* SVG */
+  #map-svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+
+  /* NODES */
+  .node {
+    position:absolute; border-radius:14px; border:1.5px solid;
+    cursor:pointer; transition:transform .22s, box-shadow .22s; user-select:none;
+  }
+  .node:hover { transform:scale(1.07); z-index:10; }
+  .node-inner { padding:11px 18px; text-align:center; }
+  .node-icon  { font-size:1.35rem; margin-bottom:5px; }
+  .node-label {
+    font-family:'Syne',sans-serif; font-weight:700; font-size:.8rem;
+    letter-spacing:.04em; line-height:1.3;
+  }
+
+  .node-root {
+    border-color:var(--accent1);
+    background:linear-gradient(135deg,rgba(74,240,196,.13),rgba(108,138,255,.09));
+    box-shadow:0 0 50px rgba(74,240,196,.22),inset 0 0 24px rgba(74,240,196,.06);
+  }
+  .node-root .node-label { font-size:1.05rem; color:var(--accent1); }
+
+  .node-hw     { border-color:var(--accent2); background:rgba(108,138,255,.09); box-shadow:0 0 22px rgba(108,138,255,.14); }
+  .node-hw     .node-label { color:var(--accent2); }
+  .node-sw     { border-color:var(--accent1); background:rgba(74,240,196,.08);  box-shadow:0 0 22px rgba(74,240,196,.11);  }
+  .node-sw     .node-label { color:var(--accent1); }
+  .node-layers { border-color:var(--accent5); background:rgba(167,139,250,.09); box-shadow:0 0 22px rgba(167,139,250,.13); }
+  .node-layers .node-label { color:var(--accent5); }
+  .node-disk   { border-color:var(--accent3); background:rgba(255,107,157,.09); box-shadow:0 0 22px rgba(255,107,157,.11); }
+  .node-disk   .node-label { color:var(--accent3); }
+  .node-clock  { border-color:var(--accent4); background:rgba(255,209,102,.09); box-shadow:0 0 22px rgba(255,209,102,.11); }
+  .node-clock  .node-label { color:var(--accent4); }
+  .node-ui     { border-color:var(--accent6); background:rgba(52,211,153,.09);  box-shadow:0 0 22px rgba(52,211,153,.11);  }
+  .node-ui     .node-label { color:var(--accent6); }
+
+  .node-child  { border-color:rgba(255,255,255,.13); background:rgba(255,255,255,.035); }
+  .node-child  .node-label { font-size:.74rem; color:var(--text); }
+
+  @keyframes pulse-ring {
+    0%   { box-shadow:0 0 0 0 rgba(74,240,196,.45),0 0 50px rgba(74,240,196,.22); }
+    70%  { box-shadow:0 0 0 18px rgba(74,240,196,0), 0 0 50px rgba(74,240,196,.22); }
+    100% { box-shadow:0 0 0 0 rgba(74,240,196,0),   0 0 50px rgba(74,240,196,.22); }
+  }
+  .node-root { animation:pulse-ring 2.8s ease-out infinite; }
+
+  /* HINT */
+  #hint {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    z-index:100; background:rgba(13,17,32,.88);
+    border:1px solid var(--border); border-radius:20px;
+    padding:6px 18px; font-size:.7rem; color:var(--muted);
+    backdrop-filter:blur(8px); pointer-events:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>Capítulo 5 · Entrada y Salida</h1>
+    <p>Sistemas Operativos — Mapa Mental Interactivo</p>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-reset" onclick="resetView()">↺ Centrar</button>
+    <button class="btn btn-download" onclick="downloadMap()">⬇ Descargar PNG</button>
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <div id="canvas">
+    <svg id="map-svg"></svg>
+  </div>
+</div>
+
+<div id="tooltip"><strong id="tt-title"></strong><span id="tt-body"></span></div>
+
+<div id="legend">
+  <p>Categorías</p>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--accent2)"></div>Hardware E/S</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--accent1)"></div>Software E/S</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--accent5)"></div>Capas del SO</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--accent3)"></div>Discos</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--accent4)"></div>Relojes</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--accent6)"></div>Interfaces / Energía</div>
+</div>
+
+<div id="zoom-ctrl">
+  <button class="zoom-btn" onclick="zoomIn()">+</button>
+  <button class="zoom-btn" onclick="zoomOut()">−</button>
+</div>
+
+<div id="hint">🖱 Arrastra para navegar · Scroll para zoom · Hover para detalles</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  NODOS
+// ═══════════════════════════════════════════════
+const NODES = [
+  // RAÍZ
+  { id:'root', x:2400, y:1920, w:200, h:86, type:'root',
+    icon:'⚡', label:'E/S (Cap. 5)',
+    tip:'Entrada y Salida: mecanismo mediante el cual la computadora se comunica con dispositivos externos como discos, teclado, pantalla y red. El SO ofrece una interfaz uniforme ocultando las diferencias de hardware.' },
+
+  // ── HARDWARE ──
+  { id:'hw', x:1360, y:1200, w:180, h:70, type:'hw',
+    icon:'🔧', label:'Hardware E/S',
+    tip:'Conjunto de componentes físicos que permiten el intercambio de información entre la CPU y el mundo exterior.' },
+  { id:'devices', x:760, y:820, w:172, h:66, type:'child',
+    icon:'🖥️', label:'Dispositivos de E/S',
+    tip:'Incluye discos, teclado, mouse, impresora, monitor y tarjeta de red. Cada uno tiene características propias de velocidad, formato de datos y funcionamiento.' },
+  { id:'ctrl', x:760, y:970, w:172, h:66, type:'child',
+    icon:'🗂️', label:'Controladores',
+    tip:'Hardware que controla directamente al dispositivo. Recibe comandos del SO, envía/recibe datos e informa el estado del dispositivo. Genera interrupciones al terminar.' },
+  { id:'regs', x:760, y:1120, w:172, h:66, type:'child',
+    icon:'📋', label:'Registros del\ndispositivo',
+    tip:'El controlador expone tres registros: (1) Registro de datos para intercambiar información, (2) Registro de estado para saber si el dispositivo está listo, (3) Registro de control para enviar comandos.' },
+  { id:'mem_map', x:760, y:1280, w:172, h:66, type:'child',
+    icon:'🗺️', label:'E/S mapeada\nen memoria',
+    tip:'Los registros del controlador se colocan en el espacio de direcciones de RAM. La CPU los accede con instrucciones normales de memoria, simplificando la programación del dispositivo.' },
+  { id:'dma', x:760, y:1430, w:172, h:66, type:'child',
+    icon:'🚀', label:'DMA',
+    tip:'Acceso Directo a Memoria. La CPU programa el controlador DMA con la dirección y el tamaño a transferir. El DMA mueve los datos sin intervenir la CPU byte a byte. Al terminar genera una interrupción.' },
+  { id:'irq', x:760, y:1580, w:172, h:66, type:'child',
+    icon:'🔔', label:'Interrupciones',
+    tip:'El dispositivo genera una señal al terminar su operación. El controlador de interrupciones notifica al CPU, que ejecuta el manejador (ISR) correspondiente y luego retoma el programa anterior.' },
+  { id:'polling', x:760, y:1730, w:172, h:66, type:'child',
+    icon:'🔄', label:'Polling (busy-wait)',
+    tip:'Alternativa a las interrupciones: la CPU consulta repetidamente el registro de estado del dispositivo hasta que esté listo. Muy simple pero desperdicia ciclos de procesador.' },
+
+  // ── SOFTWARE ──
+  { id:'sw', x:1360, y:2740, w:180, h:70, type:'sw',
+    icon:'💾', label:'Software E/S',
+    tip:'Capas de software que gestionan la E/S con independencia del dispositivo, manejo uniforme de errores, eficiencia, control de acceso y uso de búfer.' },
+  { id:'io_prog', x:760, y:2400, w:172, h:66, type:'child',
+    icon:'🔁', label:'E/S Programada',
+    tip:'La CPU controla toda la operación y revisa continuamente el estado del dispositivo (busy-wait). Sencillo pero el procesador queda bloqueado durante toda la operación de E/S.' },
+  { id:'io_irq', x:760, y:2550, w:172, h:66, type:'child',
+    icon:'⚙️', label:'E/S por interrupciones',
+    tip:'La CPU inicia la operación y continúa ejecutando otros procesos. Cuando el dispositivo termina genera una interrupción y el SO atiende el resultado. Mucho más eficiente.' },
+  { id:'io_dma2', x:760, y:2700, w:172, h:66, type:'child',
+    icon:'📦', label:'E/S con DMA',
+    tip:'Para transferencias de grandes bloques de datos, el DMA realiza la copia entre disco/red y RAM sin intervención continua de la CPU. Mejora notablemente el rendimiento del sistema.' },
+  { id:'buf', x:760, y:2850, w:172, h:66, type:'child',
+    icon:'🧰', label:'Buffering',
+    tip:'Área de memoria temporal que almacena datos entre el productor y el consumidor. Suaviza diferencias de velocidad entre la CPU (rápida) y los dispositivos (lentos como discos o impresoras).' },
+  { id:'spooling', x:760, y:3000, w:172, h:66, type:'child',
+    icon:'🖨️', label:'Spooling',
+    tip:'Simultaneous Peripheral Operations On-Line. Almacena trabajos en disco antes de enviarlos al dispositivo lento. Permite que múltiples procesos impriman sin bloquearse entre sí.' },
+  { id:'err_hand', x:760, y:3150, w:172, h:66, type:'child',
+    icon:'🛡️', label:'Manejo de errores',
+    tip:'El software de E/S detecta, reporta y se recupera de errores de manera uniforme para todos los dispositivos. Oculta las diferencias de hardware al programador de aplicaciones.' },
+
+  // ── CAPAS DEL SO ──
+  { id:'layers', x:3440, y:1200, w:180, h:70, type:'layers',
+    icon:'🗃️', label:'Capas del SO',
+    tip:'El sistema de E/S se organiza en 5 capas apiladas. Cada capa usa los servicios de la inferior y ofrece servicios a la superior, logrando modularidad e independencia del dispositivo.' },
+  { id:'l_hw', x:4020, y:820, w:172, h:66, type:'child',
+    icon:'🔩', label:'Capa 1: Hardware',
+    tip:'Base de la pirámide. Incluye los dispositivos físicos y sus controladores electrónicos que interactúan directamente con el mundo real a través de señales eléctricas.' },
+  { id:'l_irq', x:4020, y:970, w:172, h:66, type:'child',
+    icon:'⚡', label:'Capa 2: Manejadores\nde interrupciones',
+    tip:'Rutinas (ISR) que se activan cuando llega una interrupción. Identifican el dispositivo, obtienen datos del controlador y despiertan los procesos que estaban esperando esa operación.' },
+  { id:'l_drv', x:4020, y:1120, w:172, h:66, type:'child',
+    icon:'🔌', label:'Capa 3: Drivers',
+    tip:'Programas del SO específicos para cada tipo de dispositivo. Traducen operaciones genéricas (leer N bytes) a comandos concretos del controlador (mover cabezal, leer sector X).' },
+  { id:'l_ind', x:4020, y:1280, w:172, h:66, type:'child',
+    icon:'🧩', label:'Capa 4: Independiente\ndel dispositivo',
+    tip:'Proporciona servicios comunes: buffering, caché de bloques, manejo uniforme de errores, protección, asignación y liberación de dispositivos entre procesos.' },
+  { id:'l_usr', x:4020, y:1430, w:172, h:66, type:'child',
+    icon:'👤', label:'Capa 5: Espacio\nde usuario',
+    tip:'Bibliotecas y programas que utilizan los dispositivos: programas de impresión, comunicación de red, acceso a archivos. Usan llamadas al sistema para acceder a las capas inferiores.' },
+  { id:'l_cache', x:4020, y:1580, w:172, h:66, type:'child',
+    icon:'⚡', label:'Caché de bloques',
+    tip:'Área de RAM que almacena bloques de disco recientemente accedidos. Cuando se solicita un bloque ya en caché, no hace falta acceder al disco físico. Acelera enormemente la E/S.' },
+
+  // ── DISCOS ──
+  { id:'disk', x:3440, y:2740, w:180, h:70, type:'disk',
+    icon:'💿', label:'Discos',
+    tip:'Dispositivo de E/S más importante para almacenamiento secundario. Se usan para almacenamiento permanente, memoria virtual y sistemas de archivos. Leen y escriben a la misma velocidad.' },
+  { id:'disk_str', x:4020, y:2280, w:172, h:66, type:'child',
+    icon:'🏗️', label:'Estructura física',
+    tip:'Compuesto por platos giratorios, pistas circulares, sectores (unidad mínima de 512B o 4KB) y cabezas de lectura/escritura. Los datos se organizan en bloques para manejo eficiente.' },
+  { id:'disk_fcfs', x:4020, y:2430, w:172, h:66, type:'child',
+    icon:'1️⃣', label:'Algoritmo FCFS',
+    tip:'First Come First Served: atiende las peticiones exactamente en el orden en que llegaron. Simple y equitativo, pero puede generar mucho movimiento del brazo si las peticiones están dispersas.' },
+  { id:'disk_sstf', x:4020, y:2580, w:172, h:66, type:'child',
+    icon:'2️⃣', label:'Algoritmo SSTF',
+    tip:'Shortest Seek Time First: atiende siempre la petición más cercana al cabezal actual. Reduce el tiempo promedio de acceso pero puede causar inanición en peticiones de pistas lejanas.' },
+  { id:'disk_scan', x:4020, y:2730, w:172, h:66, type:'child',
+    icon:'3️⃣', label:'Algoritmos SCAN\ny C-SCAN',
+    tip:'SCAN mueve el brazo de un extremo al otro (como ascensor) atendiendo peticiones. C-SCAN solo atiende en un sentido y regresa al inicio sin atender. Más justo que SSTF.' },
+  { id:'disk_err', x:4020, y:2880, w:172, h:66, type:'child',
+    icon:'🛠️', label:'Errores de disco',
+    tip:'Los discos fallan por defectos físicos, polvo o desgaste. El controlador usa ECC (Error Correcting Code) para detectar y corregir errores. El SO puede reintentar operaciones fallidas.' },
+  { id:'disk_stb', x:4020, y:3030, w:172, h:66, type:'child',
+    icon:'🔒', label:'Almacenamiento\nestable',
+    tip:'Para datos críticos se usan técnicas que garantizan que no se pierdan ante fallos. Incluye escritura atómica: el sistema escribe en dos ubicaciones para recuperarse si falla a mitad.' },
+  { id:'disk_raid', x:4020, y:3180, w:172, h:66, type:'child',
+    icon:'🗄️', label:'RAID',
+    tip:'Redundant Array of Independent Disks. Combina múltiples discos: RAID-0 (striping, mayor velocidad), RAID-1 (mirroring, tolerancia a fallos), RAID-5 (paridad distribuida, equilibrio).' },
+
+  // ── RELOJES ──
+  { id:'clock', x:2400, y:680, w:180, h:70, type:'clock',
+    icon:'⏱️', label:'Relojes (Timers)',
+    tip:'Las computadoras usan relojes para medir tiempo, controlar procesos, implementar la planificación de CPU mediante time-slicing y generar interrupciones periódicas.' },
+  { id:'clock_hw', x:1940, y:420, w:172, h:66, type:'child',
+    icon:'🔩', label:'Reloj hardware',
+    tip:'Oscilador de cristal que genera pulsos eléctricos a frecuencia fija (ej. 100 Hz). Es la fuente de tiempo del sistema y permite sincronizar todas las operaciones del hardware.' },
+  { id:'clock_prog', x:2160, y:420, w:172, h:66, type:'child',
+    icon:'⏲️', label:'Temporizadores\nprogramables',
+    tip:'Circuitos configurables que el SO programa para generar una interrupción después de un intervalo específico. Permiten implementar time-slicing: cada proceso recibe su quantum de CPU.' },
+  { id:'clock_sw', x:2440, y:420, w:172, h:66, type:'child',
+    icon:'💻', label:'Software de reloj',
+    tip:'El SO usa el reloj para: contabilizar tiempo de CPU por proceso, gestionar la planificación, activar alarmas del sistema, implementar timeouts de E/S y despertar procesos con sleep().' },
+  { id:'clock_rt', x:2660, y:420, w:172, h:66, type:'child',
+    icon:'🕐', label:'Reloj de tiempo real',
+    tip:'Chip independiente (RTC) con batería propia que mantiene la hora del sistema incluso con la computadora apagada. Al encender, el SO lee el RTC para sincronizar su reloj interno.' },
+
+  // ── INTERFACES + ENERGÍA ──
+  { id:'ui', x:2400, y:3220, w:180, h:70, type:'ui',
+    icon:'🖱️', label:'Interfaces y Energía',
+    tip:'Dispositivos de interacción usuario-máquina (teclado, ratón, monitor) y técnicas de gestión del consumo energético, críticas en laptops, móviles y centros de datos.' },
+  { id:'ui_kb', x:1720, y:3560, w:172, h:66, type:'child',
+    icon:'⌨️', label:'Teclado',
+    tip:'Al presionar una tecla el controlador genera una interrupción. El SO lee el scancode, lo traduce al carácter mediante una tabla de mapeo y lo coloca en el búfer de entrada del proceso activo.' },
+  { id:'ui_mouse', x:1940, y:3560, w:172, h:66, type:'child',
+    icon:'🖱️', label:'Ratón / Touchpad',
+    tip:'Genera interrupciones al detectar movimiento o clics. El SO acumula los deltas de movimiento, actualiza la posición del cursor y notifica al proceso activo sobre los eventos.' },
+  { id:'ui_vid', x:2160, y:3560, w:172, h:66, type:'child',
+    icon:'🖥️', label:'Salida de video',
+    tip:'El controlador de video gestiona el framebuffer (área de RAM que contiene la imagen de pantalla). La GPU acelera el renderizado. El SO controla resolución, color y frecuencia de refresco.' },
+  { id:'ui_thin', x:2400, y:3560, w:172, h:66, type:'child',
+    icon:'🌐', label:'Cliente delgado',
+    tip:'Computadora con procesamiento local mínimo. Toda la lógica de las aplicaciones se ejecuta en un servidor remoto. El cliente solo muestra la interfaz y transmite eventos del usuario.' },
+  { id:'ui_pwr', x:2640, y:3560, w:172, h:66, type:'child',
+    icon:'🔋', label:'Gestión de energía',
+    tip:'El SO puede apagar dispositivos inactivos (disco, WiFi, pantalla), reducir la frecuencia de la CPU con DVFS y suspender el sistema. Esencial en laptops y dispositivos con batería.' },
+  { id:'ui_acpi', x:2860, y:3560, w:172, h:66, type:'child',
+    icon:'😴', label:'Estados ACPI',
+    tip:'Advanced Configuration and Power Interface define estados: S0 (activo), S1 (pantalla apagada), S3 (suspendido en RAM), S4 (hibernación en disco, guarda todo), S5 (apagado completo).' },
+];
+
+// ═══════════════════════════════════════════════
+//  ARISTAS  [origen, destino, verbo, color]
+// ═══════════════════════════════════════════════
+const EDGES = [
+  // ROOT → ramas
+  ['root','hw',     'comprende',  '#6c8aff'],
+  ['root','sw',     'gestiona',   '#4af0c4'],
+  ['root','layers', 'organiza',   '#a78bfa'],
+  ['root','disk',   'administra', '#ff6b9d'],
+  ['root','clock',  'sincroniza', '#ffd166'],
+  ['root','ui',     'controla',   '#34d399'],
+
+  // HARDWARE
+  ['hw','devices',  'incluye',    '#6c8aff'],
+  ['hw','ctrl',     'usa',        '#6c8aff'],
+  ['hw','regs',     'expone',     '#6c8aff'],
+  ['hw','mem_map',  'implementa', '#6c8aff'],
+  ['hw','dma',      'integra',    '#6c8aff'],
+  ['hw','irq',      'genera',     '#6c8aff'],
+  ['hw','polling',  'evita',      '#6c8aff'],
+
+  // SOFTWARE
+  ['sw','io_prog',  'ejecuta',    '#4af0c4'],
+  ['sw','io_irq',   'maneja',     '#4af0c4'],
+  ['sw','io_dma2',  'coordina',   '#4af0c4'],
+  ['sw','buf',      'aplica',     '#4af0c4'],
+  ['sw','spooling', 'utiliza',    '#4af0c4'],
+  ['sw','err_hand', 'detecta',    '#4af0c4'],
+
+  // CAPAS
+  ['layers','l_hw',    'contiene',  '#a78bfa'],
+  ['layers','l_irq',   'activa',    '#a78bfa'],
+  ['layers','l_drv',   'carga',     '#a78bfa'],
+  ['layers','l_ind',   'provee',    '#a78bfa'],
+  ['layers','l_usr',   'expone',    '#a78bfa'],
+  ['layers','l_cache', 'mantiene',  '#a78bfa'],
+
+  // DISCO
+  ['disk','disk_str',  'define',     '#ff6b9d'],
+  ['disk','disk_fcfs', 'aplica',     '#ff6b9d'],
+  ['disk','disk_sstf', 'optimiza',   '#ff6b9d'],
+  ['disk','disk_scan', 'recorre',    '#ff6b9d'],
+  ['disk','disk_err',  'corrige',    '#ff6b9d'],
+  ['disk','disk_stb',  'garantiza',  '#ff6b9d'],
+  ['disk','disk_raid', 'implementa', '#ff6b9d'],
+
+  // RELOJES
+  ['clock','clock_hw',   'oscila',   '#ffd166'],
+  ['clock','clock_prog', 'dispara',  '#ffd166'],
+  ['clock','clock_sw',   'programa', '#ffd166'],
+  ['clock','clock_rt',   'persiste', '#ffd166'],
+
+  // INTERFACES
+  ['ui','ui_kb',    'lee',     '#34d399'],
+  ['ui','ui_mouse', 'detecta', '#34d399'],
+  ['ui','ui_vid',   'muestra', '#34d399'],
+  ['ui','ui_thin',  'delega',  '#34d399'],
+  ['ui','ui_pwr',   'reduce',  '#34d399'],
+  ['ui','ui_acpi',  'define',  '#34d399'],
+
+  // ENLACES CRUZADOS
+  ['dma',   'io_dma2',  'habilita',  'rgba(255,255,255,0.22)'],
+  ['irq',   'io_irq',   'dispara',   'rgba(255,255,255,0.22)'],
+  ['l_drv', 'ctrl',     'comunica',  'rgba(255,255,255,0.22)'],
+  ['buf',   'l_ind',    'pertenece', 'rgba(255,255,255,0.22)'],
+  ['disk',  'l_drv',    'requiere',  'rgba(255,255,255,0.22)'],
+  ['clock', 'sw',       'regula',    'rgba(255,255,255,0.22)'],
+];
+
+// ═══════════════════════════════════════════════
+//  CONSTRUIR NODOS
+// ═══════════════════════════════════════════════
+const canvas  = document.getElementById('canvas');
+const svgEl   = document.getElementById('map-svg');
+const nodeMap = {};
+
+NODES.forEach(n => {
+  const div = document.createElement('div');
+  div.className = `node node-${n.type}`;
+  div.style.left = n.x + 'px';
+  div.style.top  = n.y + 'px';
+  div.style.width = n.w + 'px';
+  div.style.minHeight = n.h + 'px';
+  div.dataset.id = n.id;
+  div.innerHTML = `<div class="node-inner">
+    <div class="node-icon">${n.icon}</div>
+    <div class="node-label">${n.label.replace(/\n/g,'<br>')}</div>
+  </div>`;
+
+  const tt = document.getElementById('tooltip');
+  div.addEventListener('mouseenter', () => {
+    document.getElementById('tt-title').textContent = n.label.replace(/\n/g,' ');
+    document.getElementById('tt-body').textContent  = n.tip;
+    tt.style.display = 'block';
+  });
+  div.addEventListener('mousemove', e => {
+    tt.style.left = (e.clientX + 16) + 'px';
+    tt.style.top  = (e.clientY - 12) + 'px';
+  });
+  div.addEventListener('mouseleave', () => { tt.style.display = 'none'; });
+
+  canvas.appendChild(div);
+  nodeMap[n.id] = { ...n, el: div };
+});
+
+// ═══════════════════════════════════════════════
+//  CONSTRUIR ARISTAS
+// ═══════════════════════════════════════════════
+function center(n) { return { x: n.x + n.w/2, y: n.y + n.h/2 }; }
+
+function buildEdges() {
+  svgEl.innerHTML = '';
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const colors = [...new Set(EDGES.map(e => e[3]))];
+
+  colors.forEach((c,i) => {
+    const m = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    m.setAttribute('id','arr-'+i);
+    m.setAttribute('markerWidth','9'); m.setAttribute('markerHeight','9');
+    m.setAttribute('refX','7');        m.setAttribute('refY','3.5');
+    m.setAttribute('orient','auto');
+    const p = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    p.setAttribute('points','0,0 9,3.5 0,7');
+    p.setAttribute('fill',c); p.setAttribute('opacity','0.9');
+    m.appendChild(p); defs.appendChild(m);
+  });
+  svgEl.appendChild(defs);
+
+  EDGES.forEach(([fId,tId,verb,color]) => {
+    const f = nodeMap[fId], t = nodeMap[tId];
+    if(!f || !t) return;
+    const cf = center(f), ct = center(t);
+    const dx = ct.x-cf.x, dy = ct.y-cf.y;
+    const cx1 = cf.x+dx*0.42+dy*0.12, cy1 = cf.y+dy*0.42-dx*0.12;
+    const cx2 = ct.x-dx*0.42+dy*0.12, cy2 = ct.y-dy*0.42-dx*0.12;
+    const ci  = colors.indexOf(color);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M ${cf.x} ${cf.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ct.x} ${ct.y}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke',color);
+    path.setAttribute('stroke-width','2');
+    path.setAttribute('stroke-opacity','0.55');
+    path.setAttribute('marker-end',`url(#arr-${ci})`);
+    svgEl.appendChild(path);
+
+    // Etiqueta del verbo — 15px
+    const mx = (cf.x+ct.x)/2 + dy*0.06;
+    const my = (cf.y+ct.y)/2 - dx*0.06;
+    const pillW = verb.length * 9 + 22;
+
+    const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('x', mx-pillW/2); bg.setAttribute('y', my-12);
+    bg.setAttribute('width', pillW);   bg.setAttribute('height', 22);
+    bg.setAttribute('rx','11');
+    bg.setAttribute('fill','#050810'); bg.setAttribute('opacity','0.85');
+    svgEl.appendChild(bg);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', mx);   txt.setAttribute('y', my+1);
+    txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('dominant-baseline','middle');
+    txt.setAttribute('fill', color);
+    txt.setAttribute('font-family','DM Sans, sans-serif');
+    txt.setAttribute('font-size','15');        // ← 15px
+    txt.setAttribute('font-weight','600');
+    txt.setAttribute('font-style','italic');
+    txt.setAttribute('opacity','0.97');
+    txt.textContent = verb;
+    svgEl.appendChild(txt);
+  });
+}
+
+buildEdges();
+
+// ═══════════════════════════════════════════════
+//  PAN & ZOOM  —  centrado automático al cargar
+// ═══════════════════════════════════════════════
+const wrap = document.getElementById('canvas-wrap');
+let scale = 1, tx = 0, ty = 0;
+let dragging = false, lastX = 0, lastY = 0;
+
+function applyTransform() {
+  canvas.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+}
+
+function autoCenter() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - 56;
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  NODES.forEach(n => {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.w);
+    maxY = Math.max(maxY, n.y + n.h);
+  });
+  const mapW = maxX - minX, mapH = maxY - minY;
+  scale = Math.min((vw * 0.88) / mapW, (vh * 0.88) / mapH, 0.52);
+  tx = (vw  - mapW * scale) / 2 - minX * scale;
+  ty = (vh  - mapH * scale) / 2 - minY * scale;
+  applyTransform();
+}
+
+window.addEventListener('load',   autoCenter);
+window.addEventListener('resize', autoCenter);
+
+// Drag
+wrap.addEventListener('mousedown', e => {
+  if(e.target.closest('.node')) return;
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  wrap.classList.add('grabbing');
+});
+window.addEventListener('mousemove', e => {
+  if(!dragging) return;
+  tx += e.clientX - lastX; ty += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  applyTransform();
+});
+window.addEventListener('mouseup', () => { dragging = false; wrap.classList.remove('grabbing'); });
+
+// Wheel zoom (zoom hacia el cursor)
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  const rect   = wrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const ns = Math.max(0.1, Math.min(2.5, scale * factor));
+  tx = mx - (mx - tx) * (ns / scale);
+  ty = my - (my - ty) * (ns / scale);
+  scale = ns;
+  applyTransform();
+}, { passive: false });
+
+// Touch
+let touches = [];
+wrap.addEventListener('touchstart', e => { touches = [...e.touches]; });
+wrap.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if(e.touches.length===1 && touches.length===1) {
+    tx += e.touches[0].clientX - touches[0].clientX;
+    ty += e.touches[0].clientY - touches[0].clientY;
+    touches = [...e.touches]; applyTransform();
+  } else if(e.touches.length===2 && touches.length===2) {
+    const d0 = Math.hypot(touches[0].clientX-touches[1].clientX, touches[0].clientY-touches[1].clientY);
+    const d1 = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    scale = Math.max(0.1, Math.min(2.5, scale * d1/d0));
+    touches = [...e.touches]; applyTransform();
+  }
+}, { passive:false });
+
+function zoomIn()    { scale = Math.min(2.5, scale*1.2);  applyTransform(); }
+function zoomOut()   { scale = Math.max(0.1, scale*0.8);  applyTransform(); }
+function resetView() { autoCenter(); }
+
+// ═══════════════════════════════════════════════
+//  DESCARGAR PNG
+// ═══════════════════════════════════════════════
+function downloadMap() {
+  const btn = document.querySelector('.btn-download');
+  btn.textContent = '⏳ Generando...'; btn.disabled = true;
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  script.onload = () => {
+    const ps=scale, ptx=tx, pty=ty;
+    scale=1; tx=0; ty=0; applyTransform();
+    setTimeout(() => {
+      html2canvas(canvas, {
+        backgroundColor:'#050810', scale:0.4,
+        useCORS:true, logging:false, width:5200, height:4200
+      }).then(cvs => {
+        const a = document.createElement('a');
+        a.download = 'mapa_mental_cap5.png';
+        a.href = cvs.toDataURL('image/png'); a.click();
+        scale=ps; tx=ptx; ty=pty; applyTransform();
+        btn.textContent='⬇ Descargar PNG'; btn.disabled=false;
+      });
+    }, 300);
+  };
+  document.head.appendChild(script);
+}
+</script>
+</body>
+</html>
